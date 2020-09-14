@@ -3,8 +3,8 @@ defmodule K8s.Middleware.Response do
 
   @typedoc "Middlware Response type"
   @type t :: %__MODULE__{
-    status: Int() | atom()
-    body: String.t() | nil,
+    status: integer() | atom(),
+    body: String.t() | map() | nil,
     headers: Keyword.t() | nil,
     meta: map() | nil
   }
@@ -12,5 +12,5 @@ defmodule K8s.Middleware.Response do
   defstruct status: nil, body: nil, headers: [], meta: []
 
   @doc "Response middleware callback"
-  @callback call(t() :: {:ok t()} | {:error, any()}
+  @callback call(t()) :: {:ok, t()} | {:error, any()}
 end
