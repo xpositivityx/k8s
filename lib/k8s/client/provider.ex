@@ -15,5 +15,5 @@ defmodule K8s.Client.Provider do
   @callback handle_response(
               {:ok, HTTPoison.Response.t() | HTTPoison.AsyncResponse.t()}
               | {:error, HTTPoison.Error.t()}
-            ) :: response_t()
+            ) :: K8s.Middleware.Response.t()
 end
