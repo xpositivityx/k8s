@@ -31,57 +31,49 @@ defmodule K8s.Client.HTTPProvider do
 
       iex> body = ~s({"foo": "bar"})
       ...> K8s.Client.HTTPProvider.handle_response({:ok, %HTTPoison.Response{status_code: 200, body: body}})
-      {:ok, %{"foo" => "bar"}}
+      {:ok, %K8s.Middleware.Response{status: 200, body: %{"foo" => "bar"}}}
 
   Parses successful JSON responses:
 
       iex> body = "line 1\\nline 2\\nline 3\\n"
       ...> K8s.Client.HTTPProvider.handle_response({:ok, %HTTPoison.Response{status_code: 200, body: body, headers: [{"Content-Type", "text/plain"}]}})
-      {:ok, "line 1\\nline 2\\nline 3\\n"}
+      {:ok, %K8s.Middleware.Response{status: 200, body: "line 1\\nline 2\\nline 3\\n"}}
 
-  Handles unauthorized responses:
+  Handles error responses from the origin:
 
-      iex> K8s.Client.HTTPProvider.handle_response({:ok, %HTTPoison.Response{status_code: 401}})
-      {:error, :unauthorized}
-
-  Handles not found responses:
-
-      iex> K8s.Client.HTTPProvider.handle_response({:ok, %HTTPoison.Response{status_code: 404}})
-      {:error, :not_found}
-
-  Passes through HTTPoison 4xx responses:
-
-      iex> K8s.Client.HTTPProvider.handle_response({:ok, %HTTPoison.Response{status_code: 410, body: "Gone"}})
-      {:error, %HTTPoison.Response{status_code: 410, body: "Gone"}}
+      iex> body = ~s({"message": "Unauthorized"})
+      ...> K8s.Client.HTTPProvider.handle_response({:ok, %HTTPoison.Response{status_code: 401, body: body}})
+      {:ok, %K8s.Middleware.Response{status: 401, body: %{"message" => "Unauthorized"}}}
 
   Passes through HTTPoison error responses:
 
       iex> K8s.Client.HTTPProvider.handle_response({:error, %HTTPoison.Error{reason: "Foo"}})
-      {:error, %HTTPoison.Error{reason: "Foo"}}
+      {:error, %K8s.Middleware.Response{status: :client_error, body: %{reason: "Foo"}}}
 
   """
   @impl true
   def handle_response(resp) do
     case resp do
       {:ok, %HTTPoison.Response{status_code: code, body: body, headers: headers}}
-      when code in 200..299 ->
+      when code in 200..599 ->
         content_type = List.keyfind(headers, "Content-Type", 0)
-        {:ok, decode(body, content_type)}
+        {:ok,
+          %K8s.Middleware.Response{
+            status: code,
+            body: decode(body, content_type)
+          }
+        }
 
       {:ok, %HTTPoison.AsyncResponse{id: ref}} ->
         {:ok, ref}
 
-      {:ok, %HTTPoison.Response{status_code: 401}} ->
-        {:error, :unauthorized}
-
-      {:ok, %HTTPoison.Response{status_code: 404}} ->
-        {:error, :not_found}
-
-      {:ok, %HTTPoison.Response{status_code: code} = resp} when code in 400..599 ->
-        {:error, resp}
-
       {:error, %HTTPoison.Error{} = err} ->
-        {:error, err}
+        {:error,
+          %K8s.Middleware.Response{
+            status: :client_error,
+            body: %{reason: err.reason}
+          }
+        }
     end
   end
 
